@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Swing – FIFO roster and fly-home countdown</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#E8EDEF;--card:#fff;--ink:#12232E;--muted:#52666F;--line:#C5D0D5;--accent:#D9480F;--btn:#12232E;--btnink:#fff;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F1C24;--card:#172A35;--ink:#E8EEF1;--muted:#9DB0B8;--line:#2D434F;--accent:#FF8A3D;--btn:#E8EEF1;--btnink:#0F1C24;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0F1C24;--card:#172A35;--ink:#E8EEF1;--muted:#9DB0B8;--line:#2D434F;--accent:#FF8A3D;--btn:#E8EEF1;--btnink:#0F1C24;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1,h2,.big{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:0}
+h1{font-size:28px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+h2{font-size:22px;font-weight:600;margin-bottom:8px}
+.pass{background:var(--card);border-radius:16px;margin:14px 0;position:relative;overflow:hidden}
+.main{padding:20px 20px 16px}
+.stub{padding:14px 20px;border-top:2px dashed var(--line);position:relative;color:var(--muted)}
+.stub::before,.stub::after{content:"";position:absolute;top:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg)}
+.stub::before{left:-10px}.stub::after{right:-10px}
+.label{color:var(--muted);font-weight:500}
+.big{font-size:104px;line-height:.95;font-weight:700;color:var(--accent)}
+.unit{font-family:"Barlow Condensed",sans-serif;font-size:28px;font-weight:600;margin-left:8px}
+.status{font-weight:600;margin-top:6px}
+.card{background:var(--card);border-radius:16px;padding:16px 20px;margin:14px 0}
+.swing{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.swing:first-of-type{border-top:0}
+.swing span:last-child{text-align:right}
+label{display:block;font-weight:500;margin:12px 0 4px}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{font:inherit;font-weight:600;background:var(--btn);color:var(--btnink);border:0;border-radius:10px;padding:11px 16px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.check{display:flex;align-items:center;gap:10px;margin:0;padding:8px 0;border-top:1px solid var(--line);font-weight:400}
+.check:first-of-type{border-top:0}
+.check input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.check.done span{text-decoration:line-through;color:var(--muted)}
+.hint{color:var(--muted);font-size:14px;margin:6px 0 0}
+textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
+.soon{color:var(--accent);font-weight:600}
+.actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Swing <button class="ghost" id="editBtn" type="button">Edit roster</button></h1>
+
+<section id="setup" class="card" hidden>
+  <h2>Set up your roster</h2>
+  <label for="mode">How you travel</label>
+  <select id="mode"><option value="fly">Fly in, fly out (FIFO)</option><option value="drive">Drive in, drive out (DIDO)</option></select>
+  <label for="rtype">How you enter your roster</label>
+  <select id="rtype"><option value="pattern">Repeating swing (same length each time)</option><option value="exact">Exact dates and times for each trip</option></select>
+  <div id="patFields">
+  <div class="row">
+    <div><label for="start">Start date</label><input id="start" type="date"></div>
+    <div><label for="end">End date</label><input id="end" type="date"></div>
+  </div>
+  <label for="off">Days at home before the next swing</label>
+  <input id="off" type="number" min="1" max="400" value="7">
+  
+  
+  <p class="hint">Start date is the day you head out to site and end date is the day you head home. The same swing then repeats after your days at home.</p>
+  <label for="rdo">Rostered days off inside the swing</label>
+  <input id="rdo" type="text" placeholder="e.g. 7, 14">
+  <p class="hint">Day numbers within the swing. Leave blank if you have none.</p>
+  <div class="row">
+    <div><label for="outT">Departure time to site</label><input id="outT" type="time"></div>
+    <div><label for="homeT">Departure time home</label><input id="homeT" type="time"></div>
+  </div>
+  </div>
+  <div id="exFields" hidden>
+    <h2 style="margin-top:16px">Your trips</h2>
+    <div id="tripList"></div>
+    <button class="ghost" id="addTrip" type="button">Add a trip</button>
+    <p class="hint">Enter the exact date and time you leave for site, and the exact date and time you leave site to go home.</p>
+  </div>
+  <div class="row">
+    <div><label for="shS">Shift starts</label><input id="shS" type="time"></div>
+    <div><label for="shE">Shift finishes</label><input id="shE" type="time"></div>
+  </div>
+  <div class="actions"><button id="save" type="button">Save roster</button></div>
+  <p class="hint" id="err" role="alert"></p>
+</section>
+
+<div id="view" hidden>
+  <section class="pass" aria-live="polite">
+    <div class="main">
+      <div class="label" id="cdLabel"></div>
+      <div><span class="big" id="cdNum"></span><span class="unit" id="cdUnit"></span></div>
+      <div class="status" id="status"></div>
+    </div>
+    <div class="stub" id="stub"></div>
+  </section>
+
+  <section class="card">
+    <h2>Upcoming swings</h2>
+    <div id="swings"></div>
+  </section>
+
+  <section class="card">
+    <h2>Before you travel</h2>
+    <div id="list"></div>
+    <div class="row" style="margin-top:12px;grid-template-columns:1fr auto">
+      <input id="newItem" type="text" placeholder="Add a task" aria-label="New task">
+      <button id="addBtn" type="button">Add</button>
+    </div>
+    <div class="actions"><button class="ghost" id="clearBtn" type="button">Clear ticks for next swing</button></div>
+  </section>
+</div>
+<div id="more" hidden>
+<section class="card"><h2>Tickets and compliance</h2><div id="tk"></div>
+<div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:12px"><input id="tkN" placeholder="Ticket or medical" aria-label="Ticket name"><input id="tkD" type="date" aria-label="Expiry date"><button id="tkA" type="button">Add</button></div>
+<p class="hint">Pick the expiry date. Anything expiring within 30 days is highlighted.</p></section>
+<section class="card"><h2>Trip details</h2>
+<label for="d1">Flight number or drive route</label><input id="d1" data-k="ref">
+<label for="d2">Booking reference</label><input id="d2" data-k="bk">
+<label for="d3">Pickup spot</label><input id="d3" data-k="pick">
+<label for="d4">Accommodation or room</label><input id="d4" data-k="stay">
+<label for="d5">Site contact and phone</label><input id="d5" data-k="con"></section>
+<section class="card" id="drv" hidden><h2>Drive planner</h2>
+<div class="row"><div><label for="hrs">Drive time (hours)</label><input id="hrs" type="number" min="0" step="0.5"></div><div><label for="arr">Be at site by</label><input id="arr" type="time"></div></div>
+<p class="status" id="drvOut"></p></section>
+<section class="card"><h2>Jobs while home</h2><div id="jb"></div>
+<div class="row" style="grid-template-columns:1fr auto;margin-top:12px"><input id="jbN" placeholder="Add a job" aria-label="New job"><button id="jbA" type="button">Add</button></div></section>
+<section class="card"><h2>Message for family</h2>
+<button id="fam" type="button">Write my dates as a message</button>
+<textarea id="famT" rows="5" readonly hidden aria-label="Message"></textarea>
+<p class="hint">It tries to copy automatically. If not, select the text and copy it.</p></section>
+<section class="card"><h2>Swing log</h2><div id="logOut"></div></section>
+</div>
+<p class="hint">Your roster stays on this device only.</p>
+</main>
+<script>
+(function(){
+var KEY="swing-v2";
+var defaults={mode:"fly",rtype:"exact",tickets:[],det:{},hrs:"",arr:"",jobs:[],trips:[{out:"",home:"",rdo:""}],rdo:"",end:"",off:7,start:"",outT:"",homeT:"",shS:"",shE:"",
+ items:[{t:"ID, licence and site tickets",d:0},{t:"Medical and induction in date",d:0},{t:"Bag packed",d:0},{t:"Phone, charger and headphones",d:0},{t:"Ride to the airport sorted",d:0},{t:"Car parking sorted",d:0}]};
+var S;
+function load(){try{var r=localStorage.getItem(KEY);S=r?Object.assign({},defaults,JSON.parse(r)):JSON.parse(JSON.stringify(defaults))}catch(e){S=JSON.parse(JSON.stringify(defaults))}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var $=function(id){return document.getElementById(id)};
+function parse(s){var p=s.split("-").map(Number);return Date.UTC(p[0],p[1]-1,p[2])}
+function todayUTC(){var n=new Date();return Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())}
+function add(ms,n){return ms+n*864e5}
+function fmt(ms){return new Date(ms).toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short",timeZone:"UTC"})}
+function fmtT(t){var p=t.split(":");return new Date(2000,0,1,+p[0],+p[1]).toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit"})}
+function calc(){
+  var st=parse(S.start),onD=Math.round((parse(S.end)-st)/864e5)+1,offD=+S.off,cyc=onD+offD,d=Math.round((todayUTC()-st)/864e5);
+  var o={onD:onD,offD:offD,cyc:cyc,st:st};
+  if(d<0){o.state="home";o.k=-1;o.dayN=null;o.nextOut=st;o.k0=0;return o}
+  var k=Math.floor(d/cyc),r=d%cyc;o.k=k;
+  if(r<onD){o.state="on";o.dayN=r+1;o.home=add(st,k*cyc+onD-1);o.k0=k}
+  else{o.state="home";o.dayN=r-onD+1;o.nextOut=add(st,(k+1)*cyc);o.k0=k+1}
+  return o;
+}
+function target(ms,t){var d=new Date(ms),y=d.getUTCFullYear(),mo=d.getUTCMonth(),da=d.getUTCDate();return t?new Date(y,mo,da,+t.split(":")[0],+t.split(":")[1]):null}
+function render(){
+  var ok=S.rtype==="exact"?S.trips.some(function(x){return x.out&&x.home}):(S.start&&S.end&&S.end>=S.start&&S.off>0);
+  $("setup").hidden=ok&&!editing;$("view").hidden=!ok;$("editBtn").hidden=!ok||editing;
+  if(!ok)return;if(S.rtype==="exact"){renderExact();renderList();return}
+  var c=calc(),ev,evMs,t,label,sub,rl=rdoList(S.rdo,c.onD);
+  var W=S.mode==="drive"?{out:"Drive out",home:"Drive home"}:{out:"Fly out",home:"Fly home"};
+  if(c.state==="on"){evMs=c.home;t=S.homeT;label=W.home+" in";$("status").textContent="On site, day "+c.dayN+" of "+c.onD+(rl.indexOf(c.dayN)>=0?" (rostered day off)":"")}
+  else{evMs=c.nextOut;t=S.outT;label=W.out+" in";$("status").textContent=c.dayN?"At home, day "+c.dayN+" of "+c.offD:"Roster starts soon"}
+  var days=Math.round((evMs-todayUTC())/864e5),tg=target(evMs,t),now=new Date(),extra="";
+  if(days===0&&tg){var diff=tg-now;if(diff>0){extra=" Leaves in "+Math.floor(diff/36e5)+" h "+Math.floor(diff%36e5/6e4)+" min."}else{extra=" Departure time has passed."}}
+  $("cdLabel").textContent=label;
+  $("cdNum").textContent=days===0?"Today":days;
+  $("cdUnit").textContent=days===0?"":(days===1?"day":"days");
+  var bits=[fmt(evMs)+(t?" at "+fmtT(t):"")+"."+extra];
+  if(c.state==="on")bits.push("Next "+W.out.toLowerCase()+" "+fmt(add(c.st,(c.k+1)*c.cyc))+".");
+  else bits.push(W.home+" "+fmt(add(c.st,c.k0*c.cyc+c.onD-1))+".");
+  if(c.state==="on"){var nr=rl.filter(function(n){return n>c.dayN})[0];if(nr)bits.push("Next rostered day off "+fmt(add(c.st,c.k*c.cyc+nr-1))+".")}
+  if(S.shS&&S.shE)bits.push("Shift "+fmtT(S.shS)+" to "+fmtT(S.shE)+".");
+  $("stub").textContent=bits.join(" ");
+  var h="";for(var i=0;i<4;i++){var k=c.k0+i,o=add(c.st,k*c.cyc),f=add(o,c.onD-1);
+    h+='<div class="swing" style="flex-wrap:wrap"><span><b>'+W.out+'</b><br>'+fmt(o)+'</span><span><b>'+W.home+'</b><br>'+fmt(f)+'</span>'+(rl.length?'<span class="label" style="width:100%;text-align:left">Rostered days off: '+rdoDates(o,rl).map(fmt).join(", ")+'</span>':'')+'</div>'}
+  $("swings").innerHTML=h;
+  renderList();}
+function renderList(){renderMore();var L=$("list");L.innerHTML="";
+  S.items.forEach(function(it,i){var l=document.createElement("label");l.className="check"+(it.d?" done":"");
+    var cb=document.createElement("input");cb.type="checkbox";cb.checked=!!it.d;
+    cb.onchange=function(){it.d=cb.checked?1:0;save();render()};
+    var sp=document.createElement("span");sp.textContent=it.t;
+    l.appendChild(cb);l.appendChild(sp);L.appendChild(l)});
+}
+function rdoList(s,max){var a=[];String(s||"").split(/[^0-9]+/).forEach(function(p){var n=+p;if(n>0&&n<=max&&a.indexOf(n)<0)a.push(n)});return a.sort(function(x,y){return x-y})}
+function rdoDates(startMs,list){return list.map(function(n){return add(startMs,n-1)})}
+function fdt(s){var d=new Date(s);return d.toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"})+" at "+d.toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit"})}
+function sod(d){return new Date(d.getFullYear(),d.getMonth(),d.getDate())}
+function renderExact(){
+  var W=S.mode==="drive"?{out:"Drive out",home:"Drive home"}:{out:"Fly out",home:"Fly home"};
+  var now=new Date(),tr=S.trips.filter(function(x){return x.out&&x.home}).sort(function(a,b){return a.out<b.out?-1:1});
+  var cur=null,nxt=null;
+  tr.forEach(function(x){var o=new Date(x.out),h=new Date(x.home);if(!cur&&o<=now&&now<h)cur=x;if(!nxt&&o>now)nxt=x});
+  var tg,label,status,other;
+  if(cur){tg=new Date(cur.home);label=W.home+" in";var n=Math.round((sod(now)-sod(new Date(cur.out)))/864e5)+1,tot=Math.round((sod(new Date(cur.home))-sod(new Date(cur.out)))/864e5)+1;status="On site, day "+n+" of "+tot;var rl2=rdoList(cur.rdo,tot),nr2=rl2.filter(function(k){return k>n})[0],od=new Date(cur.out);if(rl2.indexOf(n)>=0)status+=" (rostered day off)";other=(nr2?"Next rostered day off "+fmt(Date.UTC(od.getFullYear(),od.getMonth(),od.getDate()+nr2-1))+". ":"")+(nxt?"Next "+W.out.toLowerCase()+" "+fdt(nxt.out)+".":"")}
+  else if(nxt){tg=new Date(nxt.out);label=W.out+" in";status="At home";other=W.home+" "+fdt(nxt.home)+"."}
+  else{$("cdLabel").textContent="No upcoming trips";$("cdNum").textContent="–";$("cdUnit").textContent="";$("status").textContent="Add your next trip in Edit roster.";$("stub").textContent="";$("swings").innerHTML="";return}
+  var days=Math.round((sod(tg)-sod(now))/864e5),extra="";
+  if(days===0){var diff=tg-now;extra=diff>0?" Leaves in "+Math.floor(diff/36e5)+" h "+Math.floor(diff%36e5/6e4)+" min.":" Departure time has passed."}
+  $("cdLabel").textContent=label;$("cdNum").textContent=days===0?"Today":days;$("cdUnit").textContent=days===0?"":(days===1?"day":"days");$("status").textContent=status;
+  var bits=[fdt(tg)+"."+extra,other];if(S.shS&&S.shE)bits.push("Shift "+fmtT(S.shS)+" to "+fmtT(S.shE)+".");
+  $("stub").textContent=bits.filter(Boolean).join(" ");
+  var h="";tr.filter(function(x){return new Date(x.home)>now}).slice(0,4).forEach(function(x){var od2=new Date(x.out),rr=rdoList(x.rdo,Math.round((sod(new Date(x.home))-sod(od2))/864e5)+1);h+='<div class="swing" style="flex-wrap:wrap"><span><b>'+W.out+'</b><br>'+fdt(x.out)+'</span><span><b>'+W.home+'</b><br>'+fdt(x.home)+'</span>'+(rr.length?'<span class="label" style="width:100%">Rostered days off: '+rr.map(function(n){return fmt(Date.UTC(od2.getFullYear(),od2.getMonth(),od2.getDate()+n-1))}).join(", ")+'</span>':'')+'</div>'});
+  $("swings").innerHTML=h;
+}
+function drawTrips(){var L=$("tripList");L.innerHTML="";S.trips.forEach(function(x,i){var d=document.createElement("div");d.className="swing";d.style.flexDirection="column";
+  [["Leave home for site","out"],["Leave site for home","home"],["Rostered days off in this trip (day numbers, e.g. 7, 14)","rdo"]].forEach(function(p){var l=document.createElement("label");l.textContent=p[0];var inp=document.createElement("input");inp.type=p[1]==="rdo"?"text":"datetime-local";inp.value=x[p[1]]||"";inp.onchange=function(){x[p[1]]=inp.value};l.appendChild(inp);d.appendChild(l)});
+  var r=document.createElement("button");r.type="button";r.className="ghost";r.textContent="Remove trip";r.onclick=function(){S.trips.splice(i,1);drawTrips()};d.appendChild(r);L.appendChild(d)})}
+function togg(){var ex=$("rtype").value==="exact";$("patFields").hidden=ex;$("exFields").hidden=!ex}
+function dd(s){return Math.round((parse(s)-todayUTC())/864e5)}
+function mk(tag,txt,cls){var e=document.createElement(tag);if(txt)e.textContent=txt;if(cls)e.className=cls;return e}
+function tripLines(){var W=S.mode==="drive"?["Drive out","Drive home"]:["Fly out","Fly home"],L=[];
+  if(S.rtype==="exact"){var now=new Date();S.trips.filter(function(x){return x.out&&x.home&&new Date(x.home)>now}).sort(function(a,b){return a.out<b.out?-1:1}).slice(0,3).forEach(function(x){L.push(W[0]+" "+fdt(x.out)+", "+W[1].toLowerCase()+" "+fdt(x.home))})}
+  else if(S.start&&S.end){var c=calc();for(var i=0;i<3;i++){var o=add(c.st,(c.k0+i)*c.cyc);L.push(W[0]+" "+fmt(o)+", "+W[1].toLowerCase()+" "+fmt(add(o,c.onD-1)))}}
+  return L}
+function renderMore(){
+  $("more").hidden=$("view").hidden;if($("more").hidden)return;
+  var T=$("tk");T.innerHTML="";
+  S.tickets.slice().sort(function(a,b){return a.d<b.d?-1:1}).forEach(function(x){var n=dd(x.d),s=n<0?"Expired "+(-n)+(n===-1?" day ago":" days ago"):n===0?"Expires today":n<=30?"Expires in "+n+(n===1?" day":" days"):"Valid until "+fmt(parse(x.d));
+    var r=mk("div","","swing"),a=mk("span"),b=mk("b",x.n);a.appendChild(b);a.appendChild(mk("br"));a.appendChild(mk("span",s,n<=30?"soon":""));
+    var rm=mk("button","Remove","ghost");rm.type="button";rm.onclick=function(){S.tickets.splice(S.tickets.indexOf(x),1);save();renderMore()};r.appendChild(a);r.appendChild(rm);T.appendChild(r)});
+  var J=$("jb");J.innerHTML="";
+  S.jobs.forEach(function(it){var l=mk("label","","check"+(it.d?" done":"")),cb=mk("input");cb.type="checkbox";cb.checked=!!it.d;cb.onchange=function(){it.d=cb.checked?1:0;save();renderMore()};
+    var rm=mk("button","Remove","ghost");rm.type="button";rm.style.marginLeft="auto";rm.onclick=function(e){e.preventDefault();S.jobs.splice(S.jobs.indexOf(it),1);save();renderMore()};
+    l.appendChild(cb);l.appendChild(mk("span",it.t));l.appendChild(rm);J.appendChild(l)});
+  $("drv").hidden=S.mode!=="drive";
+  var hr=+S.hrs,o="";
+  if(hr>0&&S.arr){var br=Math.floor(hr/2)*15,p=S.arr.split(":"),lm=(+p[0])*60+(+p[1])-hr*60-br;o="Leave by "+fmtT(new Date(2000,0,1,0,lm).toTimeString().slice(0,5))+(br?". Stop for 15 minutes every 2 hours ("+br+" minutes of breaks added).":".")}
+  $("drvOut").textContent=o||"Enter your drive time and when you need to be at site.";
+  var now=new Date(),yr=now.getFullYear(),lines=[];
+  if(S.rtype==="exact"){var n1=0,d1=0,r1=0,ny=0,dy=0;S.trips.forEach(function(x){if(!x.out||!x.home||new Date(x.home)>now)return;var dys=Math.round((sod(new Date(x.home))-sod(new Date(x.out)))/864e5)+1,rr=rdoList(x.rdo,dys).length;n1++;d1+=dys;r1+=rr;if(new Date(x.out).getFullYear()===yr){ny++;dy+=dys}});
+    lines=["Trips completed: "+n1,"Days on site: "+d1,"Rostered days off taken: "+r1,"This year: "+ny+(ny===1?" trip, ":" trips, ")+dy+" days on site"]}
+  else if(S.start&&S.end){var c=calc(),done=c.k<0?0:(c.state==="on"?c.k:c.k+1),rl=rdoList(S.rdo,c.onD).length,cur=c.state==="on"?c.dayN:0;lines=["Swings completed: "+done,"Days on site so far: "+(done*c.onD+cur),"Rostered days off per swing: "+rl]}
+  $("logOut").innerHTML="";lines.forEach(function(t){$("logOut").appendChild(mk("div",t,"swing"))});
+}
+function initMore(){
+  document.querySelectorAll("[data-k]").forEach(function(i){i.value=S.det[i.dataset.k]||"";i.oninput=function(){S.det[i.dataset.k]=i.value;save()}});
+  $("hrs").value=S.hrs;$("arr").value=S.arr;
+  $("hrs").oninput=function(){S.hrs=$("hrs").value;save();renderMore()};$("arr").oninput=function(){S.arr=$("arr").value;save();renderMore()};
+  $("tkA").onclick=function(){var n=$("tkN").value.trim(),d=$("tkD").value;if(!n||!d)return;S.tickets.push({n:n,d:d});$("tkN").value="";$("tkD").value="";save();renderMore()};
+  $("jbA").onclick=function(){var v=$("jbN").value.trim();if(!v)return;S.jobs.push({t:v,d:0});$("jbN").value="";save();renderMore()};
+  $("fam").onclick=function(){var L=tripLines(),t=L.length?"My next swings:\n"+L.join("\n"):"No upcoming swings set yet.";$("famT").value=t;$("famT").hidden=false;try{var p=navigator.clipboard&&navigator.clipboard.writeText(t);if(p&&p.catch)p.catch(function(){})}catch(e){}};
+}
+var editing=false;
+function fill(){["mode","off","start","end"].forEach(function(k){$(k).value=S[k]});$("rtype").value=S.rtype;$("rdo").value=S.rdo||"";drawTrips();togg();$("outT").value=S.outT;$("homeT").value=S.homeT;$("shS").value=S.shS;$("shE").value=S.shE}
+$("editBtn").onclick=function(){editing=true;fill();render()};
+$("save").onclick=function(){
+  S.rtype=$("rtype").value;
+  if(S.rtype==="exact"){var good=S.trips.filter(function(x){return x.out&&x.home&&x.home>x.out});if(!good.length){$("err").textContent="Add at least one trip with a leave date and a return date after it.";return}S.trips=good;S.mode=$("mode").value;S.shS=$("shS").value;S.shE=$("shE").value;$("err").textContent="";save();editing=false;render();return}
+  var off=+$("off").value,st=$("start").value,en=$("end").value;
+  if(!(off>0)){$("err").textContent="Enter how many days you are at home between swings.";return}
+  if(!st||!en||en<st){$("err").textContent="Pick a start date and an end date, with the end on or after the start.";return}
+  $("err").textContent="";
+  S.off=off;S.end=en;S.mode=$("mode").value;S.rdo=$("rdo").value;S.start=st;S.outT=$("outT").value;S.homeT=$("homeT").value;S.shS=$("shS").value;S.shE=$("shE").value;
+  save();editing=false;render();
+};
+$("rtype").onchange=togg;
+$("addTrip").onclick=function(){S.trips.push({out:"",home:""});drawTrips()};
+$("addBtn").onclick=function(){var v=$("newItem").value.trim();if(!v)return;S.items.push({t:v,d:0});$("newItem").value="";save();render()};
+$("clearBtn").onclick=function(){S.items.forEach(function(i){i.d=0});save();render()};
+load();fill();initMore();render();setInterval(render,60000);
+})();
+</script>
+</body>
+</html>
